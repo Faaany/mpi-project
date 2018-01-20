@@ -43,28 +43,35 @@ void compute(Vector &image, unsigned width, unsigned height, int id) {
     const unsigned kNumIndepIters = 10;
     assert(height/2 > kNumIndepIters);
     if(id>1) return;
-    unsigned start = id==0? 1                         : height/2-kNumIndepIters+1;
-    unsigned end =   id==0? height/2+kNumIndepIters   : height-1;
 
     Vector image_new(width*height);
 
-    for(unsigned iteration =0; iteration <kNumIndepIters; ++iteration) {
-
-        for(unsigned y=start; y<end; ++y) {
-            for(unsigned x =1; x<width-1; ++x) {
-                image_new[y*width+x] = (image[(y-1)*width+x]+image[(y+1)*width+x]+
-                        image[y*width+x+1]+image[y*width+x-1]+image[y*width+x])/5;
+    for(unsigned sweep=0; sweep<height; ++sweep) {
+        unsigned start = id==0? 1                         : height/2-kNumIndepIters+1;
+        unsigned end =   id==0? height/2+kNumIndepIters   : height-1;
+        for(unsigned iteration =0; iteration <kNumIndepIters; ++iteration) {
+            for(unsigned y=start; y<end; ++y) {
+                for(unsigned x =1; x<width-1; ++x) {
+                    image_new[y*width+x] = (image[(y-1)*width+x]+image[(y+1)*width+x]+
+                            image[y*width+x+1]+image[y*width+x-1]+image[y*width+x])/5;
+                }
             }
-        }
 
-        if(id == 0) {
-            --end;
+            if(id == 0) {
+                --end;
+            }else {
+                ++start;
+            }
+            swap(image_new,image);
+        }
+        if(id==0) {
+            MPI_Send(&image[height/2*width-kNumIndepIters*width],kNumIndepIters*width,MPI_DOUBLE,1,0,MPI_COMM_WORLD);
+            MPI_Recv(&image[height/2*width],kNumIndepIters*width,MPI_DOUBLE,1,1,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         }else {
-            ++start;
+            MPI_Recv(&image[height/2*width-kNumIndepIters*width],kNumIndepIters*width,MPI_DOUBLE,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Send(&image[height/2*width],kNumIndepIters*width,MPI_DOUBLE,0,1,MPI_COMM_WORLD);
         }
-        swap(image_new,image);
     }
-
 
 }
 
