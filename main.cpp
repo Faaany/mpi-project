@@ -3,13 +3,15 @@
 #include "lodepng.h"
 #include <string>
 #include <mpi.h>
+#include <cassert>
 
 using std::string;
 
 typedef std::vector<double> Vector;
 
 Vector LoadImage(const string& filename, unsigned& width, unsigned& height);
-void SaveImage(const Vector &vector, unsigned width, unsigned height, const string &filename);
+void SaveImage(Vector &image, unsigned width, unsigned height, const string &filename, int id);
+void compute(Vector &image, unsigned width, unsigned height, int id);
 
 int main() {
 
@@ -25,20 +27,59 @@ int main() {
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
     MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
+    compute(image,width,height,id);
 
-    
+    SaveImage(image, width, height,"result.png",id);
 
 
     MPI_Finalize();
 
 
 
-    SaveImage(image, width, height,"result.png");
-
     return 0;
 }
 
-void SaveImage(const Vector &image, unsigned width, unsigned height, const string &filename) {
+void compute(Vector &image, unsigned width, unsigned height, int id) {
+    const unsigned kNumIndepIters = 10;
+    assert(height/2 > kNumIndepIters);
+    if(id>1) return;
+    unsigned start = id==0? 1                         : height/2-kNumIndepIters+1;
+    unsigned end =   id==0? height/2+kNumIndepIters   : height-1;
+
+    Vector image_new(width*height);
+
+    for(unsigned iteration =0; iteration <kNumIndepIters; ++iteration) {
+
+        for(unsigned y=start; y<end; ++y) {
+            for(unsigned x =1; x<width-1; ++x) {
+                image_new[y*width+x] = (image[(y-1)*width+x]+image[(y+1)*width+x]+
+                        image[y*width+x+1]+image[y*width+x-1]+image[y*width+x])/5;
+            }
+        }
+
+        if(id == 0) {
+            --end;
+        }else {
+            ++start;
+        }
+        swap(image_new,image);
+    }
+
+
+}
+
+void SaveImage(Vector &image, unsigned width, unsigned height, const string &filename, int id) {
+    switch(id){
+        case 0:
+            MPI_Recv(&image[height/2*width],height/2*width,MPI_DOUBLE,1,10,MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            break;
+        case 1:
+            MPI_Send(&image[height/2*width],height/2*width,MPI_DOUBLE,0,10,MPI_COMM_WORLD);
+            //fall through
+        default:
+            return;
+    }
+
     std::vector<unsigned char> pixels(width*height*4);
     for(unsigned i=0; i<width*height; ++i) {
         pixels[4*i] = pixels[4*i+1] = pixels[4*i+2]=(unsigned char)image[i];
@@ -54,6 +95,7 @@ void SaveImage(const Vector &image, unsigned width, unsigned height, const strin
 
 
 Vector LoadImage(const string& filename, unsigned& width, unsigned& height) {
+
     std::vector<unsigned char> image; //the raw pixels
     width=0, height=0;
 
