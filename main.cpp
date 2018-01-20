@@ -9,6 +9,8 @@ using std::string;
 
 typedef std::vector<double> Vector;
 
+enum MessageType {kUpperOverlap, kLowerOverlap, kLowerHalf};
+
 Vector LoadImage(const string& filename, unsigned& width, unsigned& height);
 void SaveImage(Vector &image, unsigned width, unsigned height, const string &filename, int id);
 void compute(Vector &image, unsigned width, unsigned height, int id);
@@ -65,11 +67,11 @@ void compute(Vector &image, unsigned width, unsigned height, int id) {
             swap(image_new,image);
         }
         if(id==0) {
-            MPI_Send(&image[height/2*width-kNumIndepIters*width],kNumIndepIters*width,MPI_DOUBLE,1,0,MPI_COMM_WORLD);
-            MPI_Recv(&image[height/2*width],kNumIndepIters*width,MPI_DOUBLE,1,1,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Send(&image[height/2*width-kNumIndepIters*width],kNumIndepIters*width,MPI_DOUBLE,1,kUpperOverlap,MPI_COMM_WORLD);
+            MPI_Recv(&image[height/2*width],kNumIndepIters*width,MPI_DOUBLE,1,kLowerOverlap,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         }else {
-            MPI_Recv(&image[height/2*width-kNumIndepIters*width],kNumIndepIters*width,MPI_DOUBLE,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-            MPI_Send(&image[height/2*width],kNumIndepIters*width,MPI_DOUBLE,0,1,MPI_COMM_WORLD);
+            MPI_Recv(&image[height/2*width-kNumIndepIters*width],kNumIndepIters*width,MPI_DOUBLE,0,kUpperOverlap,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+            MPI_Send(&image[height/2*width],kNumIndepIters*width,MPI_DOUBLE,0,kLowerOverlap,MPI_COMM_WORLD);
         }
     }
 
@@ -78,10 +80,10 @@ void compute(Vector &image, unsigned width, unsigned height, int id) {
 void SaveImage(Vector &image, unsigned width, unsigned height, const string &filename, int id) {
     switch(id){
         case 0:
-            MPI_Recv(&image[height/2*width],height/2*width,MPI_DOUBLE,1,10,MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&image[height/2*width],height/2*width,MPI_DOUBLE,1,kLowerHalf,MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             break;
         case 1:
-            MPI_Send(&image[height/2*width],height/2*width,MPI_DOUBLE,0,10,MPI_COMM_WORLD);
+            MPI_Send(&image[height/2*width],height/2*width,MPI_DOUBLE,0,kLowerHalf,MPI_COMM_WORLD);
             //fall through
         default:
             return;
